@@ -1,8 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 import http.client
 import urllib.parse
 import json
 import os
+import time
+import threading
 
 app = FastAPI()
 
@@ -12,8 +14,12 @@ CLIENT_SECRET = os.getenv("ZOHO_CLIENT_SECRET")
 REFRESH_TOKEN = os.getenv("ZOHO_REFRESH_TOKEN")
 TOKEN_URL = "accounts.zoho.in"
 
+# Store the latest token
+latest_token = {"access_token": None}
+
 def get_new_access_token():
     """Fetches a new access token using the refresh token."""
+    global latest_token
     conn = http.client.HTTPSConnection(TOKEN_URL)
     
     params = urllib.parse.urlencode({
@@ -33,11 +39,28 @@ def get_new_access_token():
     token_info = json.loads(data)
     
     if "access_token" in token_info:
+        latest_token["access_token"] = token_info["access_token"]
+        print("✅ Token refreshed successfully:", latest_token["access_token"])
         return {"access_token": token_info["access_token"]}
     else:
+        print("❌ Error refreshing token:", token_info)
         return {"error": token_info}
+
+def auto_refresh_token():
+    """Runs in the background to refresh the token every 55 minutes."""
+    while True:
+        get_new_access_token()
+        time.sleep(3300)  # 55 minutes (3300 seconds)
+
+# Start the background refresh task in a separate thread
+threading.Thread(target=auto_refresh_token, daemon=True).start()
 
 @app.get("/refresh-token")
 def refresh_token():
-    """API endpoint to refresh Zoho access token."""
+    """API endpoint to manually refresh the token."""
     return get_new_access_token()
+
+@app.get("/latest-token")
+def get_latest_token():
+    """Returns the latest refreshed token."""
+    return latest_token
