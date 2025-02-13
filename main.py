@@ -1,4 +1,4 @@
-from fastapi import FastAPI, BackgroundTasks, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends
 import http.client
 import urllib.parse
 import json
@@ -9,9 +9,9 @@ import threading
 app = FastAPI()
 
 # Environment variables for security
-CLIENT_ID = os.getenv("ZOHO_CLIENT_ID", "your_client_id")
-CLIENT_SECRET = os.getenv("ZOHO_CLIENT_SECRET", "your_client_secret")
-REFRESH_TOKEN = os.getenv("ZOHO_REFRESH_TOKEN", "your_refresh_token")
+CLIENT_ID = os.getenv("ZOHO_CLIENT_ID")
+CLIENT_SECRET = os.getenv("ZOHO_CLIENT_SECRET")
+REFRESH_TOKEN = os.getenv("ZOHO_REFRESH_TOKEN")
 TOKEN_URL = "accounts.zoho.in"
 
 # Store the latest token
@@ -50,7 +50,7 @@ def auto_refresh_token():
     """Runs in the background to refresh the token every 55 minutes."""
     while True:
         get_new_access_token()
-        time.sleep(3300)  # 55 minutes (3300 seconds)
+        time.sleep(3300)  # 55 minutes
 
 # Start the background refresh task in a separate thread
 threading.Thread(target=auto_refresh_token, daemon=True).start()
