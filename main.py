@@ -1,4 +1,4 @@
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, HTTPException, Depends
 import http.client
 import urllib.parse
 import json
@@ -9,9 +9,9 @@ import threading
 app = FastAPI()
 
 # Environment variables for security
-CLIENT_ID = os.getenv("ZOHO_CLIENT_ID")
-CLIENT_SECRET = os.getenv("ZOHO_CLIENT_SECRET")
-REFRESH_TOKEN = os.getenv("ZOHO_REFRESH_TOKEN")
+CLIENT_ID = os.getenv("ZOHO_CLIENT_ID", "your_client_id")
+CLIENT_SECRET = os.getenv("ZOHO_CLIENT_SECRET", "your_client_secret")
+REFRESH_TOKEN = os.getenv("ZOHO_REFRESH_TOKEN", "your_refresh_token")
 TOKEN_URL = "accounts.zoho.in"
 
 # Store the latest token
@@ -55,12 +55,19 @@ def auto_refresh_token():
 # Start the background refresh task in a separate thread
 threading.Thread(target=auto_refresh_token, daemon=True).start()
 
+# Authentication dependency
+def verify_refresh_token(token: str):
+    """Validates the refresh token before allowing access."""
+    if token != REFRESH_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid refresh token")
+    return token
+
 @app.get("/refresh-token")
-def refresh_token():
-    """API endpoint to manually refresh the token."""
+def refresh_token(token: str = Depends(verify_refresh_token)):
+    """API endpoint to manually refresh the token (requires refresh token authentication)."""
     return get_new_access_token()
 
 @app.get("/latest-token")
-def get_latest_token():
-    """Returns the latest refreshed token."""
+def get_latest_token(token: str = Depends(verify_refresh_token)):
+    """Returns the latest refreshed token (requires authentication)."""
     return latest_token
