@@ -1,31 +1,23 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 import http.client
 import urllib.parse
 import json
-import os
 import time
 import threading
 
 app = FastAPI()
 
-# Environment variables for security
-CLIENT_ID = os.getenv("ZOHO_CLIENT_ID")
-CLIENT_SECRET = os.getenv("ZOHO_CLIENT_SECRET")
-REFRESH_TOKEN = os.getenv("ZOHO_REFRESH_TOKEN")
-TOKEN_URL = "accounts.zoho.in"
-
-# Store the latest token
+# Global dictionary to store the latest access token
 latest_token = {"access_token": None}
 
-def get_new_access_token():
-    """Fetches a new access token using the refresh token."""
-    global latest_token
-    conn = http.client.HTTPSConnection(TOKEN_URL)
+def get_new_access_token(client_id: str, client_secret: str, refresh_token: str):
+    """Fetch a new access token from Zoho using the provided credentials."""
+    conn = http.client.HTTPSConnection("accounts.zoho.in")
     
     params = urllib.parse.urlencode({
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "refresh_token": REFRESH_TOKEN,
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "refresh_token": refresh_token,
         "grant_type": "refresh_token"
     })
     
@@ -44,30 +36,22 @@ def get_new_access_token():
         return {"access_token": token_info["access_token"]}
     else:
         print("❌ Error refreshing token:", token_info)
-        return {"error": token_info}
+        raise HTTPException(status_code=400, detail=token_info)
 
-def auto_refresh_token():
-    """Runs in the background to refresh the token every 55 minutes."""
-    while True:
-        get_new_access_token()
-        time.sleep(3300)  # 55 minutes
-
-# Start the background refresh task in a separate thread
-threading.Thread(target=auto_refresh_token, daemon=True).start()
-
-# Authentication dependency
-def verify_refresh_token(token: str):
-    """Validates the refresh token before allowing access."""
-    if token != REFRESH_TOKEN:
-        raise HTTPException(status_code=403, detail="Invalid refresh token")
-    return token
+# (Optional) Background auto-refresh could be implemented if you wish
+# For example, if you want to auto-refresh using a default set of credentials,
+# you can store those in the global latest_token (or elsewhere) and run a background task.
+# In this example, auto-refresh is disabled since the credentials are provided per request.
 
 @app.get("/refresh-token")
-def refresh_token(token: str = Depends(verify_refresh_token)):
-    """API endpoint to manually refresh the token (requires refresh token authentication)."""
-    return get_new_access_token()
+def refresh_token(client_id: str, client_secret: str, token: str):
+    """
+    API endpoint to refresh the Zoho access token.
+    Provide client_id, client_secret, and refresh token (as 'token') as query parameters.
+    """
+    return get_new_access_token(client_id, client_secret, token)
 
 @app.get("/latest-token")
-def get_latest_token(token: str = Depends(verify_refresh_token)):
-    """Returns the latest refreshed token (requires authentication)."""
+def get_latest_token():
+    """Returns the most recently refreshed access token."""
     return latest_token
